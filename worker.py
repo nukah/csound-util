@@ -17,8 +17,8 @@ formats = {"4:3" : {"LD" : '-s 320x240 -qmin 14 -qmax 20', "SD" : '-s 640x480 -q
 #           } 
 
 
-FFMPEG = r"c:\bin\ffmpeg.exe"
-SAVE_PATH = r"c:\converted"
+FFMPEG = r"ffmpeg"
+SAVE_PATH = r"~/convert"
 
 @task(name="analyze")
 def analyze(name, path, aspect, height, callback = None, **kwargs):
@@ -58,7 +58,7 @@ def convert(name, path, quality, callback = None, **kwargs):
                 "FORMAT" : "flv",
                 "QUALITY" : quality,
                 "ADDITIONAL_OPTS" : "",
-                "FILEPATH" : '%s\%s' % (SAVE_PATH, name)
+                "FILEPATH" : '%s/%s' % (SAVE_PATH, name)
                }
     options = "{FFMPEG} -i {INPUT_FILE} -sn -f {FORMAT} {QUALITY} {ADDITIONAL_OPTS} {FILEPATH}".format(**optdict)
     log.info("Converting process for [%s] started with params [%s]" % (name, optdict))
