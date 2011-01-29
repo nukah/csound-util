@@ -24,7 +24,7 @@ SAVE_PATH = r"~/convert"
 def analyze(name, path, aspect, height, callback = None, **kwargs):
     height = height
     path = path
-    name = name
+    name = "%s.%s" % (name, 'flv')
     quality = ""
     
     log = Task.get_logger(**kwargs)
