@@ -2,7 +2,10 @@ from subprocess import Popen, PIPE
 from celery.decorators import task 
 from celery.task import Task
 from celery.task.sets import subtask
-import re, pymongo, bson
+from pymongo import Connection
+from socket import gethostname
+from datetime import datetime
+import re, bson
 
 QTypes = {"LQ" : "360",
           "SQ" : "480",
@@ -21,18 +24,19 @@ formats = {"4:3" : {
                      },
            }
 
-
+HOST = gethostname()
 FFMPEG = "ffmpeg"
 SAVE_PATH = r"~/convert"
 
 class DB(object):
     def __init__(self):
         self.connection = Connection('192.168.1.5', 27017)
-        self.database = Database(self.connection, "database")
-        self.collection = database.videos
+        self.db = self.connection['database']
+	self.c = self.db['videos']
+	
     @property
     def collection(self):
-        return self.collection
+        return self.c
     def __del__(self):
         self.connection.disconnect()
         
@@ -70,8 +74,9 @@ def analyze(name, path, aspect, height, oid, callback = None, **kwargs):
 def convert(id, name, path, quality, callback = None, **kwargs):
     db = DB()
     log = Task.get_logger(**kwargs)
-    finish_pattern = re.compile(r"video:(?P<video>\d+)kB\s*audio:(?P<audio>\d+)kB\s*global\sheaders:(?P<headers>\d+)kB\s*muxing\soverhead\s(\d+\.?\d+)",re.X)
-    
+    finish_pattern = re.compile(r".*video:(?P<video>\d+)kB\s*audio:(?P<audio>\d+)kB\s*global\sheaders:(?P<headers>\d+)kB\s*muxing\soverhead\s(\d+\.?\d+)",re.X)
+    task_id = kwargs['task_id']
+     
     optdict = { 
                 "FFMPEG" : FFMPEG,
                 "INPUT_FILE" : path,
@@ -83,16 +88,15 @@ def convert(id, name, path, quality, callback = None, **kwargs):
     options = "{FFMPEG} -i {INPUT_FILE} -sn -f {FORMAT} {QUALITY} {ADDITIONAL_OPTS} {FILEPATH}".format(**optdict)
     
     log.info("Converting process for [%s] starting with params [%s]" % (name, optdict))
-    
-    process = Popen(options, shell=True, stderr=PIPE)    
+    db.collection.update({'_id' : id}, {'$set' : {'convert.host' : HOST}})
+    process = Popen(options, shell=True, stderr=PIPE, close_fds=True) 
     output = process.stderr.read()
-    log.debug(output)
-    match = finish_pattern.match(output)
+    match = finish_pattern.search(output)
     if not match:
+        db.collection.update({'_id' : id }, {'$set' : {'converted' : 'False', 'convert.failed' : 'True', 'convert.last_retry' : datetime.now()}, '$inc' : {'convert.retries' : 1}})
         log.error("Converting process failed, retrying.")
-        db.collection.update({'_id' : oid }, {{'$set' : {'failed' : 'True'}}, {'$inc' : {'retries' : 1}}})
     else:
-        db.collection.update({'_id' : oid }, {'$set' : {'converted' : 'True'}})
+        db.collection.update({'_id' : id }, {'$set' : {'converted' : 'True'}, '$unset' : { 'convert.failed' : 1, 'convert.retries' : 1, 'convert.last_retry' : 1}})
         log.info("Converting process finished successfully.")
 
     if callback is not None:
@@ -108,14 +112,14 @@ def thumbnails(path, name, **kwargs):
                }
     options = "{FFMPEG} -i {INPUT_FILE} -f image2 -r 0.1 -t 5 -vframes 4 -s {SIZE} {OUTPUT}".format(optdict)
 
-def todo():
-    ### todo functional objects: chunk read output
-    #fcntl.fcntl(process.stderr.fileno(), fcntl.F_SETFL, fcntl.fcntl(process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,)
-    #pattern = re.compile("\S+\s+(?P<frame>\d+)
-    #            \s\S+\s+(?P<fps>\d+)
-    #            \sq=(?P<q>\S+)
-    #            \s\S+\s+(?P<size>\S+)
-    #            \stime=(?P<time>\S+)
-    #            \sbitrate=(?P<bitrate>[\d\.]+)
-    #            """, re.X)"
-    #       convert.retry([name, path, quality, callback], kwargs, countdown=60)
+### todo functional objects: chunk read output
+#fcntl.fcntl(process.stderr.fileno(), fcntl.F_SETFL, fcntl.fcntl(process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,)
+#pattern = re.compile("\S+\s+(?P<frame>\d+)
+#            \s\S+\s+(?P<fps>\d+)
+#            \sq=(?P<q>\S+)
+#            \s\S+\s+(?P<size>\S+)
+#            \stime=(?P<time>\S+)
+#            \sbitrate=(?P<bitrate>[\d\.]+)
+#            """, re.X)"
+#       convert.retry([name, path, quality, callback], kwargs, countdown=60)
+
