@@ -2,7 +2,7 @@ from subprocess import Popen, PIPE
 from celery.decorators import task 
 from celery.task import Task
 from celery.task.sets import subtask
-import re
+import re, pymongo
 
 QTypes = {"LQ" : "360",
           "SQ" : "480",
@@ -56,6 +56,7 @@ def analyze(name, path, aspect, height, callback = None, **kwargs):
 @task(name="convert")
 def convert(name, path, quality, callback = None, **kwargs):
     log = Task.get_logger(**kwargs)
+    Task.max_retries = 2
     optdict = { 
                 "FFMPEG" : FFMPEG,
                 "INPUT_FILE" : path,
@@ -68,11 +69,14 @@ def convert(name, path, quality, callback = None, **kwargs):
     log.info("Converting process for [%s] starting with params [%s]" % (name, optdict))
     process = Popen(options, shell=True, stderr=PIPE)
     finish_pattern = re.compile(r"video:(?P<video>\d+)kB\s*audio:(?P<audio>\d+)kB\s*global\sheaders:(?P<headers>\d+)kB\s*muxing\soverhead\s(\d+\.?\d+)",re.X)
-    with process.stderr as output:
-        match = finish_pattern.match(output.read())
-        if not match:
-            convert.retry([name, path, quality, callback], kwargs, countdown=60)
-            log.error("Converting process failed, retrying.")
+    output = process.stderr.read()
+    log.debug(output)
+    match = finish_pattern.match(output)
+    if not match:
+#   	convert.retry([name, path, quality, callback], kwargs, countdown=60)
+        log.error("Converting process failed, retrying.")
+    else:
+        log.info("Converting process finished successfully.")
     ### todo functional objects: chunk read output
     #fcntl.fcntl(process.stderr.fileno(), fcntl.F_SETFL, fcntl.fcntl(process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,)
     #pattern = re.compile("\S+\s+(?P<frame>\d+)
