@@ -1,8 +1,8 @@
-import subprocess
+from subprocess import Popen, PIPE
 from celery.decorators import task 
 from celery.task import Task
 from celery.task.sets import subtask
-import re
+import re, os, fcntl
 
 QTypes = {"LQ" : "360",
           "SQ" : "480",
@@ -17,7 +17,7 @@ formats = {"4:3" : {"LD" : '-s 320x240 -qmin 14 -qmax 20', "SD" : '-s 640x480 -q
 #           } 
 
 
-FFMPEG = r"ffmpeg"
+FFMPEG = "ffmpeg"
 SAVE_PATH = r"~/convert"
 
 @task(name="analyze")
@@ -47,7 +47,6 @@ def analyze(name, path, aspect, height, callback = None, **kwargs):
     
     if callback is not None:
         subtask(callback).delay(name, path, quality)
-    
 
 @task(name="convert")
 def convert(name, path, quality, callback = None, **kwargs):
@@ -57,18 +56,26 @@ def convert(name, path, quality, callback = None, **kwargs):
                 "INPUT_FILE" : path,
                 "FORMAT" : "flv",
                 "QUALITY" : quality,
-                "ADDITIONAL_OPTS" : "",
-                "FILEPATH" : '%s/%s' % (SAVE_PATH, name)
+                "ADDITIONAL_OPTS" : "-y",
+                "FILEPATH" : '%s/%s' % (SAVE_PATH,name)
                }
     options = "{FFMPEG} -i {INPUT_FILE} -sn -f {FORMAT} {QUALITY} {ADDITIONAL_OPTS} {FILEPATH}".format(**optdict)
-    log.info("Converting process for [%s] started with params [%s]" % (name, optdict))
-    process = subprocess.Popen(options, stderr = subprocess.PIPE, stdout = subprocess.PIPE)
-    log.debug(process.stderr.read())
-    log.debug(process.stdout.read())
+    log.info("Converting process for [%s] starting with params [%s]" % (name, optdict))
+    process = Popen(options, shell=True, stderr=PIPE)
+    finish_pattern = re.compile(r"\s\S+\s+(?P<video>\d+)\s\S+\s+(?P<audio>\d+)\s(?P<global headers>\d+)\s(?P<overhead>\d+)",re.X)
+    ### todo functional objects: chunk read output
+    #fcntl.fcntl(process.stderr.fileno(), fcntl.F_SETFL, fcntl.fcntl(process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,)
+    #pattern = re.compile("\S+\s+(?P<frame>\d+)
+    #			\s\S+\s+(?P<fps>\d+)
+    #			\sq=(?P<q>\S+)
+    #			\s\S+\s+(?P<size>\S+)
+    #			\stime=(?P<time>\S+)
+    #			\sbitrate=(?P<bitrate>[\d\.]+)
+    #			""", re.X)"
+    
     if callback is not None:
         subtask(callback).delay(path, name)
-#    k = re.match("(\d+)kB.*", line)
-
+   
 @task(name="thumbnails")
 def thumbnails(path, name, **kwargs):
     log = Task.get_logger(**kwargs)
