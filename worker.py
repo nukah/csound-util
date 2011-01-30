@@ -2,19 +2,24 @@ from subprocess import Popen, PIPE
 from celery.decorators import task 
 from celery.task import Task
 from celery.task.sets import subtask
-import re, os, fcntl
+import re
 
 QTypes = {"LQ" : "360",
           "SQ" : "480",
           "HQ" : "720"
           }
 
-formats = {"4:3" : {"LD" : '-s 320x240 -qmin 14 -qmax 20', "SD" : '-s 640x480 -qmin 8 -qmax 15', "HD" : '-s 960x720 -qmin 6 -qmax 12'},
-           "16:9" : {"LD" : '-s 640x360 -qmin 14 -qmax 20', "SD" : '-s 852x480 -qmin 8 -qmax 15', "HD" : '-s 1280x720 -qmin 6 -qmax 12'},
+formats = {"4:3" : {
+                    "LD" : '-s 320x240 -qmin 16 -qmax 22', 
+                    "SD" : '-s 640x480 -qmin 14 -qmax 18', 
+                    "HD" : '-s 960x720 -qmin 5 -qmax 14'
+                    },
+           "16:9" : {
+                     "LD" : '-s 640x360 -qmin 16 -qmax 22', 
+                     "SD" : '-s 852x480 -qmin 12 -qmax 18', 
+                     "HD" : '-s 1280x720 -qmin 5 -qmax 14'
+                     },
            }
-#formats = {"4:3" : {"LD" : '-s 480x360 -b 650', "SD" : '-s 640x480 -b ', "HD" : '-s 960x720'},
-#           "16:9" : {"LD" : '-s 640x360', "SD" : '-s 852x480', "HD" : '-s 1280x720'},
-#           } 
 
 
 FFMPEG = "ffmpeg"
@@ -62,7 +67,12 @@ def convert(name, path, quality, callback = None, **kwargs):
     options = "{FFMPEG} -i {INPUT_FILE} -sn -f {FORMAT} {QUALITY} {ADDITIONAL_OPTS} {FILEPATH}".format(**optdict)
     log.info("Converting process for [%s] starting with params [%s]" % (name, optdict))
     process = Popen(options, shell=True, stderr=PIPE)
-    finish_pattern = re.compile(r"\s\S+\s+(?P<video>\d+)\s\S+\s+(?P<audio>\d+)\s(?P<global headers>\d+)\s(?P<overhead>\d+)",re.X)
+    finish_pattern = re.compile(r"video:(?P<video>\d+)kB\s*audio:(?P<audio>\d+)kB\s*global\sheaders:(?P<headers>\d+)kB\s*muxing\soverhead\s(\d+\.?\d+)",re.X)
+    with process.stderr as output:
+        match = finish_pattern.match(output.read())
+        if not match:
+            convert.retry([name, path, quality, callback], kwargs, countdown=60)
+            log.error("Converting process failed, retrying.")
     ### todo functional objects: chunk read output
     #fcntl.fcntl(process.stderr.fileno(), fcntl.F_SETFL, fcntl.fcntl(process.stderr.fileno(), fcntl.F_GETFL) | os.O_NONBLOCK,)
     #pattern = re.compile("\S+\s+(?P<frame>\d+)
