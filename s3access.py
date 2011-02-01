@@ -12,17 +12,18 @@ class StoringException(Exception):
     pass
 
 class Storage(object):
-    def __init__(self, bucket=BUCKET_NAME, policy=PUBLIC_POLICY, location=Location.EU):
+    def __init__(self, bucket=None, policy=None, location=None):
         self.connection = S3Connection(AWS_AUTH_KEY, AWS_SECRET_KEY)
-        self.bucket = bucket
-        self.location = location
+        self.bucket = bucket or BUCKET_NAME
+        self.policy = policy or PUBLIC_POLICY
+        self.location = location or Location.EU
         if self.connection and not self.connection.get_bucket(self.bucket):
-            self.bucket = self.connection.create_bucket(bucket, self.location)
-            self.bucket.set_acl(policy)
+            self.create = self.connection.create_bucket(bucket, self.location)
+            self.create.set_acl(policy)
 
     @property
     def get(self):
-        return self.c.get_bucket(self.bucket)
+        return self.connection.get_bucket(self.bucket)
 
 class StoreObject(object):
     def __init__(self, id=None, file=None, bucket=None, policy=None):
@@ -86,3 +87,6 @@ class GetObject(object):
     @property
     def path(self):
         return self.filepath
+
+p = StoreObject('text1', 'c:\\bin\\libx264-medium.ffpreset')
+p.send()
