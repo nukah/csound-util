@@ -6,17 +6,18 @@ AWS_AUTH_KEY = ""
 AWS_SECRET_KEY = ""
 DEFAULT_SAVE_PATH = "C:\\"
 BUCKET_NAME = "csound"
+PUBLIC_POLICY = "public-read"
 
 class StoringException(Exception):
     pass
 
 class Storage(object):
-    def __init__(self, bucket=BUCKET_NAME, policy='public-read', location=Location.EU):
-        self.c = S3Connection(AWS_AUTH_KEY, AWS_SECRET_KEY)
+    def __init__(self, bucket=BUCKET_NAME, policy=PUBLIC_POLICY, location=Location.EU):
+        self.connection = S3Connection(AWS_AUTH_KEY, AWS_SECRET_KEY)
         self.bucket = bucket
         self.location = location
-        if self.c and not self.c.get_bucket(self.bucket):
-            self.bucket = self.c.create_bucket(bucket, self.location)
+        if self.connection and not self.connection.get_bucket(self.bucket):
+            self.bucket = self.connection.create_bucket(bucket, self.location)
             self.bucket.set_acl(policy)
 
     @property
@@ -24,22 +25,21 @@ class Storage(object):
         return self.c.get_bucket(self.bucket)
 
 class StoreObject(object):
-    def __init__(self, id=None, file=None):
-        self.storage = Storage().get
+    def __init__(self, id=None, file=None, bucket=None, policy=None):
+        self.storage = Storage(bucket, policy).get
         self.key = Key(self.storage)
         self.key.key = id
+        self.policy = policy or PUBLIC_POLICY
         if file and os.path.exists(os.path.abspath(file)):
             self.file = file
         else:
             StoringException('File not specified.')
             
     def send(self):
-        if not self.file:
-            raise StoringException('File is not provided, nothing to upload.')
         if self.key.exists():
             raise StoringException('Key is already in use')
         else:
-            self.key.set_contents_from_filename(self.file, cb=self.progress)
+            self.key.set_contents_from_filename(self.file,policy=self.policy, cb=self.progress)
     
     def progress(self, part, complete):
         if part == complete:
@@ -56,6 +56,10 @@ class StoreObject(object):
     def set_meta(self, name, value):
         if name and value:
             self.key.set_metadata(name,value)
+            
+    @property 
+    def url(self):
+        pass
             
 class GetObject(object):
     def __init__(self, id=None):
@@ -77,7 +81,8 @@ class GetObject(object):
             return False
             
     def delete(self):
-        return self.kobj.delete()    
+        return self.kobj.delete()
+    
     @property
     def path(self):
         return self.filepath
