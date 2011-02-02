@@ -22,12 +22,18 @@ class Storage(object):
             self.create.set_acl(policy)
 
     @property
-    def get(self):
+    def instance(self):
         return self.connection.get_bucket(self.bucket)
+    @property
+    def name(self):
+        return self.bucket
+
 
 class StoreObject(object):
     def __init__(self, id=None, file=None, bucket=None, policy=None):
-        self.storage = Storage(bucket, policy).get
+        self.connection = Storage(bucket, policy)
+        self.storage = self.connection.instance
+        self.bname = self.connection.name
         self.key = Key(self.storage)
         self.key.key = id
         self.policy = policy or PUBLIC_POLICY
@@ -60,11 +66,12 @@ class StoreObject(object):
             
     @property 
     def url(self):
-        pass
+        return "http://s3.amazonaws.com/%s/%s" % (self.bname, self.key.key)
             
 class GetObject(object):
-    def __init__(self, id=None):
-        self.storage = Storage().get
+    def __init__(self, id=None, bucket=None):
+        self.connection = Storage(bucket)
+        self.storage = self.connection.instance
         self.kobj = Key(self.storage)
         self.kobj.key = id
                 
@@ -87,6 +94,3 @@ class GetObject(object):
     @property
     def path(self):
         return self.filepath
-
-p = StoreObject('text1', 'c:\\bin\\libx264-medium.ffpreset')
-p.send()
