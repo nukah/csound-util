@@ -19,7 +19,7 @@ class Storage(object):
         self.location = location or Location.EU
         if self.connection and not self.connection.get_bucket(self.bucket):
             self.create = self.connection.create_bucket(bucket, self.location)
-            self.create.set_acl(policy)
+            self.create.set_acl(self.policy)
 
     @property
     def instance(self):
@@ -34,8 +34,8 @@ class StoreObject(object):
         self.connection = Storage(bucket, policy)
         self.storage = self.connection.instance
         self.bname = self.connection.name
-        self.key = Key(self.storage)
-        self.key.key = id
+        self.kobj = Key(self.storage)
+        self.kobj.key = id
         self.policy = policy or PUBLIC_POLICY
         if file and os.path.exists(os.path.abspath(file)):
             self.file = file
@@ -43,10 +43,10 @@ class StoreObject(object):
             StoringException('File not specified.')
             
     def send(self):
-        if self.key.exists():
-            raise StoringException('Key is already in use')
+        if self.kobj.exists():
+            raise StoringException('Key <%s> is already in use' % self.kobj.key)
         else:
-            self.key.set_contents_from_filename(self.file,policy=self.policy, cb=self.progress)
+            self.kobj.set_contents_from_filename(self.file,policy=self.policy, cb=self.progress)
     
     def progress(self, part, complete):
         if part == complete:
@@ -55,18 +55,18 @@ class StoreObject(object):
             return False
     
     def __repr__(self):
-        return self.key.__repr__()
+        return self.kobj.__repr__()
     
     def delete(self):
-        return self.key.delete()
+        return self.kobj.delete()
         
     def set_meta(self, name, value):
         if name and value:
-            self.key.set_metadata(name,value)
+            self.kobj.set_metadata(name,value)
             
     @property 
     def url(self):
-        return "http://s3.amazonaws.com/%s/%s" % (self.bname, self.key.key)
+        return "http://s3.amazonaws.com/%s/%s" % (self.bname, self.kobj.key)
             
 class GetObject(object):
     def __init__(self, id=None, bucket=None):
@@ -80,7 +80,7 @@ class GetObject(object):
             self.filepath = os.path.join(path, self.kobj.key)
             self.kobj.get_contents_to_filename(self.filepath, cb=self.progress)
         else:
-            raise StoringException('Key invalid.')
+            raise StoringException('Key <%s> invalid.' % self.kobj.key)
         
     def progress(self, part, complete):
         if part == complete:
