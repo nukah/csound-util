@@ -6,7 +6,7 @@ class NodeLoader(BaseLoader):
     def __init__(self, *args, **kwargs):
         self._conf = {}
         log = logging.get_logger(__name__)
-        super(AppLoader, self).__init__(*args, **kwargs)
+        super(NodeLoader, self).__init__(*args, **kwargs)
         try:
             configuration = conf()
             self._conf = DictAttribute(configuration.getdict('CELERY'))
