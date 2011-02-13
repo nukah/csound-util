@@ -1,11 +1,12 @@
 from celery.loaders.base import BaseLoader
 from celery.datastructures import DictAttribute
-import logging
+from conf import RegistryError, conf
+from logging import getLogger
 
 class NodeLoader(BaseLoader):
     def __init__(self, *args, **kwargs):
         self._conf = {}
-        log = logging.get_logger(__name__)
+        log = getLogger(__name__)
         super(NodeLoader, self).__init__(*args, **kwargs)
         try:
             configuration = conf()
