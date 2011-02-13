@@ -1,22 +1,11 @@
 from celery.loaders.base import BaseLoader
-from celery.datastructures import DictAttribute
-from conf import RegistryError, conf
-from logging import getLogger
 
+BUILTIN = ['celery.task']
 class NodeLoader(BaseLoader):
-    def __init__(self, *args, **kwargs):
-        self._conf = {}
-        log = getLogger(__name__)
-        super(NodeLoader, self).__init__(*args, **kwargs)
-        try:
-            configuration = conf()
-            self._conf = DictAttribute(configuration.getdict('CELERY'))
-        except RegistryError, e:
-            log.error(e)
-
+    def import_default_modules(self):
+        imports = self.app.conf.get('CELERY_IMPORTS') or None
+        imports = set(imports.split(',') + BUILTIN)
+        return map(self.import_task_module, imports)
+        
     def on_worker_init(self):
         self.import_default_modules()
-
-    @property
-    def conf(self):
-        return self._conf
