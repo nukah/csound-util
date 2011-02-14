@@ -2,6 +2,7 @@ from subprocess import Popen, PIPE
 from celery.task import task, subtask
 from socket import gethostname
 from datetime import datetime
+from database import *
 import re
 
 QTypes = {"LQ" : "360",
@@ -26,9 +27,15 @@ HOST = gethostname()
 FFMPEG = "ffmpeg"
 SAVE_PATH = r"~/convert"
 
+def enum(**enums):
+    return type('Enum', (), enums)
+
+STATES = enum(INITIAL = 1, UPLOADED = 2, CONVERTED = 3, FINISHED = 4)
+
 
 @task(name = "analyze")
 def analyze(name, path, aspect, height, oid, callback = None):
+    db = DB().collection
     id = bson.ObjectId(oid = oid)
     height = height
     path = path

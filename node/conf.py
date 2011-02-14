@@ -4,7 +4,8 @@ import os, logging
 __options__ = {
                'CELERY' : ('CELERY_IMPORTS', 'CELERY_RESULT_BACKEND', 'CELERYD_LOG_LEVEL', 'BROKER_HOST', 'BROKER_PORT', 'BROKER_VHOST', 'BROKER_USER', 'BROKER_PASSWORD'),
                'AWS' : ('AWS_AUTH_KEY', 'AWS_SECRET_KEY', 'DEFAULT_SAVE_PATH', 'BUCKET_NAME'),
-               'SYSTEM' : ()
+               'SYSTEM' : (),
+               'DATABASE' : ('HOST', 'PORT', 'USER')
                }
 
 class RegistryError(Exception):
